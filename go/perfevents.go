@@ -179,6 +179,14 @@ const (
 	PERF_IOC_DISABLE_PPC = 0x20002401
 )
 
+// PerfIOCOps stores the correct IOC operations respective
+// to the underlying architecture.
+type PerfIOCOps struct {
+	reset uint64
+	enable uint64
+	disable uint64
+}
+
 // PerfEventInfo holds the file descriptor for a perf event.
 // EventName : name of the perf event
 // Fd : File descriptor opened by the perf_event_open syscall.
@@ -187,6 +195,44 @@ type PerfEventInfo struct {
 	EventName string
 	Fd        int
 	Data      uint64
+	IOCOps    PerfIOCOps
+}
+
+func findMachineInfo() (string, error) {
+	var buf syscall.Utsname
+	err := syscall.Uname(&buf)
+	if err != nil {
+		return "", err
+	}
+	machineName := make([]byte, len(buf.Machine))
+
+	i := 0
+	for ; i < len(buf.Machine); i++ {
+		if buf.Machine[i] == 0 {
+			break
+		}
+		machineName[i] = uint8(buf.Machine[i])
+	}
+
+	str := string(machineName[0:i])
+	return str, nil
+}
+
+// InitIOCOps initializes the Perf IOCTL functions respective to
+// the underlying architecture
+func (event *PerfEventInfo) InitIOCOps() error {
+	machine, err := findMachineInfo()
+	if err != nil {
+		return err
+	}
+	if machine == "x86_64" {
+		event.IOCOps = PerfIOCOps{reset: PERF_IOC_RESET_X86, enable: PERF_IOC_ENABLE_X86, disable: PERF_IOC_DISABLE_X86}
+	} else if machine == "ppc64le" {
+		event.IOCOps = PerfIOCOps{reset: PERF_IOC_RESET_PPC, enable: PERF_IOC_ENABLE_PPC, disable: PERF_IOC_DISABLE_PPC}
+	} else {
+		return errors.New("InitIOCOps: machine not supported")
+	}
+	return nil
 }
 
 // FetchPerfEventAttr is the same as that of the independent one, just to
@@ -208,6 +254,11 @@ func (event *PerfEventInfo) InitOpenEventEnable(eventName string, pid int, cpu i
 	if err != nil {
 		return err
 	}
+	err = event.InitIOCOps()
+	if (err != nil) {
+		return err
+	}
+
 	err = event.OpenEvent(eventAttr, pid, cpu, group_fd, flags)
 	if err != nil {
 		return err
@@ -357,7 +408,7 @@ func (event *PerfEventInfo) ResetEvent() error {
 	if event.Fd < 0 {
 		return PerfFdError
 	}
-	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(event.Fd), uintptr(PERF_IOC_RESET_X86), uintptr(0), uintptr(0), uintptr(0), uintptr(0))
+	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(event.Fd), uintptr(event.IOCOps.reset), uintptr(0), uintptr(0), uintptr(0), uintptr(0))
 	if err != 0 {
 		return PerfIOCError
 	}
@@ -369,7 +420,7 @@ func (event *PerfEventInfo) EnableEvent() error {
 	if event.Fd < 2 {
 		return PerfFdError
 	}
-	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(event.Fd), uintptr(PERF_IOC_ENABLE_X86), uintptr(0), uintptr(0), uintptr(0), uintptr(0))
+	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(event.Fd), uintptr(event.IOCOps.enable), uintptr(0), uintptr(0), uintptr(0), uintptr(0))
 	if err != 0 {
 		return PerfIOCError
 	}
@@ -381,7 +432,7 @@ func (event *PerfEventInfo) DisableEvent() error {
 	if event.Fd < 2 {
 		return PerfFdError
 	}
-	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(event.Fd), uintptr(PERF_IOC_DISABLE_X86), uintptr(0), uintptr(0), uintptr(0), uintptr(0))
+	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(event.Fd), uintptr(event.IOCOps.disable), uintptr(0), uintptr(0), uintptr(0), uintptr(0))
 	if err != 0 {
 		return PerfIOCError
 	}

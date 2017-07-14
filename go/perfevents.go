@@ -332,7 +332,7 @@ func InitOpenEventsEnableSelf(events string) (error, []string, []PerfEventInfo) 
 // EventsRead : Read the event count for a slice of event descriptors in
 // "eventsInfo'
 func EventsRead(eventsInfo []PerfEventInfo) error {
-	eventListNA := make([]string, len(eventsInfo))
+	eventListNA := make([]string, 0, len(eventsInfo))
 
 	for i := 0; i < len(eventsInfo); i++ {
 		err := (&eventsInfo[i]).ReadEvent()

@@ -5,8 +5,12 @@ This is the implementation of perfevents package in Java.
 perfevents provides an API and a package in Java which can be used
 by any Java application to profile its components.
 
-Note: To use this package, one must have Java Native Access package in their
-classpath. If not available, please download it from [here](https://github.com/java-native-access/jna).
+## Build
+To build a `jar` file for this, do:
+```
+gradle assemble
+```
+The generated `perfevents.jar` is inside `build/libs/` directory.
 
 To use this package inside your Java application, use:
 ```java
